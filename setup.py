@@ -42,8 +42,8 @@ class build_ext(_build_ext):
 ext = '.pyx' if USE_CYTHON else '.cpp'
 
 extensions = [Extension(
-        'fastdtw._fastdtw',
-        [os.path.join('fastdtw', '_fastdtw' + ext)],
+        'fastdtw2._fastdtw',
+        [os.path.join('fastdtw2', '_fastdtw' + ext)],
         language="c++",
         include_dirs=numpy_includes,
         libraries=["stdc++"]
@@ -60,7 +60,7 @@ needs_pytest = set(['pytest', 'test', 'ptr']).intersection(sys.argv)
 pytest_runner = ['pytest-runner'] if needs_pytest else []
 
 kwargs = {
-    'name': 'fastdtw',
+    'name': 'fastdtw2',
     'version': '0.3.4',
     'author': 'Kazuaki Tanida',
     'url': 'https://github.com/slaypni/fastdtw',
