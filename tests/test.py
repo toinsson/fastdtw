@@ -31,3 +31,14 @@ D0 = fastdtw2.fastdtw(X, Y, dist=maha)
 D1 = fastdtw2.fastdtw(X, Y, dist='mahalanobis_full', weights_list=ic_random.reshape(-1))
 print(D0[0], D1[0])
 print("D0 == D1", np.isclose(D0[0], D1[0]))
+
+
+# In [15]: %%timeit
+#     ...: fastdtw2.fastdtw(X, Y, dist='mahalanobis_full', weights_list=cov.reshape(-1))[0]
+# 2.25 ms ± 24.7 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+# In [16]: %%timeit
+#     ...: fastdtw2.fastdtw(X, Y, dist=maha)[0]
+# 69.5 ms ± 646 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
+# In [17]: %%timeit
+#     ...: fastdtw2.fastdtw(X, Y)[0]
+# 4.11 ms ± 28.5 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
