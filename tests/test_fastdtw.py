@@ -7,10 +7,10 @@ import unittest
 
 import numpy as np
 
-from fastdtw._fastdtw import fastdtw as fastdtw_c
-from fastdtw._fastdtw import dtw as dtw_c
-from fastdtw.fastdtw import fastdtw as fastdtw_p
-from fastdtw.fastdtw import dtw as dtw_p
+from fastdtw2._fastdtw import fastdtw as fastdtw_c
+from fastdtw2._fastdtw import dtw as dtw_c
+from fastdtw2.fastdtw import fastdtw as fastdtw_p
+from fastdtw2.fastdtw import dtw as dtw_p
 
 
 class FastdtwTest(unittest.TestCase):

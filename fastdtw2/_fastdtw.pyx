@@ -6,8 +6,10 @@ from __future__ import absolute_import, division
 import numbers
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from libc.math cimport pow, fabs
+from libc.math cimport pow, fabs, sqrt
 from libcpp.vector cimport vector
+
+from libc.stdio cimport printf
 
 import numpy as np
 
@@ -83,10 +85,12 @@ def fastdtw(x, y, int radius=1, dist=None, weights_list=None):
     '''
     x, y = __prep_inputs(x, y, dist)
 
-    # save weigths for later
+    # save weigths when ditance is Mahalanobis
     global weights
-    cdef array.array a = array.array('f', weights_list)
-    weights = a
+    cdef array.array a
+    if (dist == 'mahalanobis_diag') or (dist == 'mahalanobis_full'):
+        a = array.array('f', weights_list)
+        weights = a
 
     # passing by reference to recursive functions apparently doesn't work
     # so we are passing pointers
@@ -263,31 +267,46 @@ cdef double __dtw(x, y, vector[WindowElement] &window, dist,
     # define the dist function
     # if it is numpy array we can get an order of magnitude improvement
     # by calculating the p-norm ourselves.
-    cdef double pnorm = -1.0 if not isinstance(dist, numbers.Number) else dist
-    if ((dist is None or pnorm > 0) and
-        (isinstance(x, np.ndarray) and isinstance(y, np.ndarray) and
-         np.issubdtype(x.dtype, np.floating) and
-         np.issubdtype(y.dtype, np.floating))):
+    cdef double pnorm
 
+    if (dist == "mahalanobis_diag") or (dist == "mahalanobis_full"):
+        pnorm = 1
         if x.ndim == 1:
-            if dist is None:
-                pnorm = 1
-            use_1d = 1
+            # use_1d = 1
             x_arr1d = x
             y_arr1d = y
         elif x.ndim == 2:
-            if dist is None:
-                pnorm = 1
-            use_2d = 1
+            # use_2d = 1
             x_arr2d = x
             y_arr2d = y
             width = x.shape[1]
 
-    if not use_1d and not use_2d:
-        if dist is None:
-            dist = __difference
-        elif pnorm > 0:
-            dist = __norm(pnorm)
+    else:
+        pnorm = -1.0 if not isinstance(dist, numbers.Number) else dist
+        if ((dist is None or pnorm > 0) and
+            (isinstance(x, np.ndarray) and isinstance(y, np.ndarray) and
+            np.issubdtype(x.dtype, np.floating) and
+            np.issubdtype(y.dtype, np.floating))):
+
+            if x.ndim == 1:
+                if dist is None:
+                    pnorm = 1
+                use_1d = 1
+                x_arr1d = x
+                y_arr1d = y
+            elif x.ndim == 2:
+                if dist is None:
+                    pnorm = 1
+                use_2d = 1
+                x_arr2d = x
+                y_arr2d = y
+                width = x.shape[1]
+
+        if not use_1d and not use_2d:
+            if dist is None:
+                dist = __difference
+            elif pnorm > 0:
+                dist = __norm(pnorm)
 
     # loop over the window. Note from __expand_window that if we loop over its
     # indices we will in effect be looping over each row
@@ -299,6 +318,11 @@ cdef double __dtw(x, y, vector[WindowElement] &window, dist,
     cost[0].cost = 0
     cost[0].prev_idx = -1
 
+    cdef int j
+    cdef double[:] maha_diff = np.zeros(width, dtype=np.double)
+    cdef double[:] maha_m_times_b = np.zeros(width, dtype=np.double)
+    cdef double maha_a_times_m_times_b = 0
+
     for idx in range(window_len):
 
         we = window[idx]
@@ -308,10 +332,38 @@ cdef double __dtw(x, y, vector[WindowElement] &window, dist,
             sm = 0
             for i in range(width):
                 diff = abs(x_arr2d[we.x_idx, i] - y_arr2d[we.y_idx, i])
-                # include weights here
+                sm += pow(diff, pnorm)
+            dt = pow(sm, 1 / pnorm)
+
+        elif dist == "mahalanobis_diag":
+            # 1-norm Mahalanobis-type distance - we use the absolute diff instead
+            # of the 2-norm, as in the default DTW algorithm
+            # this is in 2D by default
+            sm = 0
+            for i in range(width):
+                diff = abs(x_arr2d[we.x_idx, i] - y_arr2d[we.y_idx, i])
                 diff *= weights[i]
                 sm += pow(diff, pnorm)
             dt = pow(sm, 1 / pnorm)
+
+        elif dist == "mahalanobis_full":
+            # regular Mahalanobis distance
+            for i in range(width):
+                maha_diff[i] = 0
+                maha_m_times_b[i] = 0
+
+            for i in range(width):
+                maha_diff[i] = x_arr2d[we.x_idx, i] - y_arr2d[we.y_idx, i]
+            for i in range(width):
+                for j in range(width):
+                    maha_m_times_b[i] += weights[i*width+ j] * maha_diff[j]
+
+            maha_a_times_m_times_b = 0
+            for i in range(width):
+                maha_a_times_m_times_b += maha_diff[i] * maha_m_times_b[i]
+
+            dt = sqrt(maha_a_times_m_times_b)
+
         else:
             dt = dist(x[we.x_idx], y[we.y_idx])
 
